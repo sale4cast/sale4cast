@@ -31,11 +31,10 @@ dataImputation <- function(datf)
     #As the difference (lastTimeStamp - firstTimeStamp) comes as a day, It assert to be multiplied by 24 to convert into hour.  
     nhour <- (lastTimeStamp - firstTimeStamp)*24
     DateAndTime <- firstTimeStamp + hours(0:nhour)  
-    Data <- rep(0, (nhour+1))
     emptyDatf <- tibble(DateAndTime)
     for(colNo in 5:NCOL(dataForAlgo)) 
     {
-      emptyDatf %>% add_column(data = rep(0, (nhour+1)), .name_repair = make.unique) -> emptyDatf       
+      emptyDatf %>% add_column(data = -1, .name_repair = make.unique) -> emptyDatf       
     }
     emptyDatf %>% mutate(Year = year(emptyDatf[[1]]), Month = month(emptyDatf[[1]]), Day = day(emptyDatf[[1]]), Hour = hour(emptyDatf[[1]])) -> emptyDatf
     emptyDatf %>% select(Year:Hour, everything(), -colnames(emptyDatf)[1]) -> emptyDatf  
@@ -48,19 +47,22 @@ dataImputation <- function(datf)
 
     dataForAlgo <- rows_update(emptyDatf, dataForAlgo, by=c("Year", "Day", "Month", "Hour"))        
  
-    # rbindData %>% group_by(.data[[colnames(rbindData)[1]]]) %>% summarise(sum(.data[[colnames(rbindData)[2]]])) -> dataForAlgo 
-    dataForAlgo %>% na_if(0) -> dataForAlgo
-    a <- 10
-    dataForAlgo <- na_kalman(dataForAlgo)    
-    #  ggplot_na_imputations(dataForAlgo[[5]], imp)  
+#    rbindData %>% group_by(.data[[colnames(rbindData)[1]]]) %>% summarise(sum(.data[[colnames(rbindData)[2]]])) -> dataForAlgo 
+    dataForAlgo %>% na_if(-1) -> dataForAlgo
+#    dataForAlgo <- na_kalman(dataForAlgo)    
+#    ggplot_na_imputations(dataForAlgo[[5]], imp)  
   }
-  a <- 10
+
   # Next1 : cut the extra data from tail of dataForAlgo where the last observation found
   # Next2 : if a time series is big enough cut the extra data from the head of the dataForAlgo 
-  dataForAlgo %>% group_by(Year, Month, Day) %>% summarise(FreqHourPerDay = n()) -> freqHourEachDay
-  startRow <- NROW(dataForAlgo) %% max(freqHourEachDay[4])
+  dataForAlgo %>% group_by(Hour) %>% summarise(count = n()) -> hourList  
+  freqHour <- NROW(hourList)
+  startRow <- NROW(dataForAlgo) %% freqHour
   if(startRow != 0)
     dataForAlgo %>% tail(NROW(dataForAlgo) - startRow) -> dataForAlgo
+  
+  if("NumOfSalesOrder" %in% colnames(dataForAlgo)) dataForAlgo$NumOfSalesOrder <- ts_clean_vec(dataForAlgo$NumOfSalesOrder, period = freqHour, lambda = NULL)  
+  if("SalesQty" %in% colnames(dataForAlgo))        dataForAlgo$SalesQty <- ts_clean_vec(dataForAlgo$SalesQty, period = freqHour, lambda = NULL)  
   return(dataForAlgo)
 }
 

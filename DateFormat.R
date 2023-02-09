@@ -1,7 +1,6 @@
 library(lubridate)
 
 findDateTimeFormat <- function(dateTimeVec){
-  a <- 10
   #daily date format 
   if (sum(is.na(dateTime <- parse_date_time(dateTimeVec, orders = "%d%m%y", quiet = TRUE))) == 0) format <- "dmy"
   else if (sum(is.na(dateTime <- parse_date_time(dateTimeVec, orders = "%m%d%y", quiet = TRUE))) == 0) format <- "mdy"   

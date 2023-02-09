@@ -1,14 +1,18 @@
 toForecast <- function(datfSunAggByHourM, colIndicator) {
-  if(colIndicator[[4]] != 0) datfSunAggByHourM %>% group_by(Hour) %>% summarise(salesQtyPerCustomer = sum(salesQty)/sum(NumberOfCustomer)) -> sundayHour
-  else datfSunAggByHourM %>% group_by(Hour) %>% summarise(count = n()) -> sundayHour
-  freq <- NROW(sundayHour)
-  tSeries <- ts(datfSunAggByHourM[[5]], frequency = freq)
+  datfSunAggByHourM %>% group_by(Hour) %>% summarise(count = n()) -> hourList  
+  if("SalesQty" %in% colnames(datfSunAggByHourM)) {
+    QtySalesRatioByHour <- datfSunAggByHourM %>% select(Hour, NumOfSalesOrder, SalesQty) %>% mutate(QtySalesRatio = SalesQty/NumOfSalesOrder) %>% select(Hour, QtySalesRatio)
+    QtySalesRatioByHour <- QtySalesRatioByHour %>% group_by(Hour) %>% summarise_all(list(mean))
+  } 
+  freq <- NROW(hourList)
+  tSeries <- ts(datfSunAggByHourM$NumOfSalesOrder, frequency = freq)
 #  createDailyForecast(tSeries, freq) %>% fortify() %>% tail(freq) -> forecastedData  
   tSeries %>% stlf(h = freq) %>% fortify() %>% tail(freq) -> forecastedData
-  forecastedData[-c(1,2,3,7,8)] -> forecastedData
-  forecastedData %>% add_column(Hour = sundayHour[[1]], .before = "Point Forecast") -> forecastedData    
+  forecastedData[-c(1,2,3,7,8)] -> forecastedData # colnames(forecastedData) = "Index", "Data", "Fitted", "Point Forecast", "Lo 80", "Hi 80", "Lo 95", "Hi 95" 
+  forecastedData %>% add_column(Hour = hourList$Hour, .before = "Point Forecast") -> forecastedData
   forecastedData <- rename(forecastedData, NumberOfSalesOrder = "Point Forecast", Lo80 = "Lo 80", Hi80 = "Hi 80")
-  if(colIndicator[[4]] != 0) forecastedData %>% add_column(salesQty = sundayHour[["salesQtyPerCustomer"]] * forecastedData[["NumberOfSalesOrder"]]) -> forecastedData
+  if("SalesQty" %in% colnames(datfSunAggByHourM)) 
+    left_join(forecastedData, QtySalesRatioByHour, by = "Hour") %>% mutate(SalesQty = NumberOfSalesOrder * QtySalesRatio) %>% select(-QtySalesRatio) -> forecastedData  
   forecastedData %>% mutate_if(is.double, as.integer) -> forecastedData   
   forecastedData[forecastedData < 0] <- 0
   return(forecastedData)
@@ -16,7 +20,7 @@ toForecast <- function(datfSunAggByHourM, colIndicator) {
 
 forecastPlot <- function(forecastedData, colIndicator, dayName) {
   
-  if(colIndicator[[4]] != 0) geom_p <- geom_point(aes(size = salesQty), alpha = 1, color = "#F49F05")
+  if("SalesQty" %in% colnames(forecastedData)) geom_p <- geom_point(aes(size = SalesQty), alpha = 1, color = "#F49F05")
   else geom_p <- geom_point(size = 3, color = "red")
   
   pl <- ggplot(data = forecastedData, mapping = aes(x = Hour, y = NumberOfSalesOrder)) + 
@@ -44,37 +48,44 @@ plotHourlyForecast <- function(datfSplitAggByHour, colIndicator) {
   WeekDay %>% filter(WeekDay %in% c("Thursday", "Monday", "Tuesday", "Wednesday", "Friday", "Sunday", "Saturday")) -> WeekDay
   a <- 10
   if("Monday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Monday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfMonAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Monday") %>% select(-WeekDay) -> datfMonAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataMon <- toForecast(datfMonAggByHourM, colIndicator)
-    ForecastMonday <- forecastPlot(forecastedDataMon, colIndicator, "Monday")   
+       ForecastMonday <- forecastPlot(forecastedDataMon, colIndicator, "Monday")   
   } 
   if("Tuesday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Tuesday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfTueAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Tuesday") %>% select(-WeekDay) %>% dataImputation() -> datfTueAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataTue <- toForecast(datfTueAggByHourM, colIndicator)
-    ForecastTuesday <- forecastPlot(forecastedDataTue, colIndicator, "Tuesday")   
+      ForecastTuesday <- forecastPlot(forecastedDataTue, colIndicator, "Tuesday")   
   } 
   if("Wednesday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Wednesday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfWedAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Wednesday") %>% select(-WeekDay) %>% dataImputation() -> datfWedAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataWed <- toForecast(datfWedAggByHourM, colIndicator)
     ForecastWednesday <- forecastPlot(forecastedDataWed, colIndicator, "Wednesday")   
   } 
   if("Thursday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Thursday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfThuAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Thursday") %>% select(-WeekDay) %>% dataImputation() -> datfThuAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataThu <- toForecast(datfThuAggByHourM, colIndicator)
-    ForecastThursday <- forecastPlot(forecastedDataThu, colIndicator, "Thursday")   
+     ForecastThursday <- forecastPlot(forecastedDataThu, colIndicator, "Thursday")   
   } 
   if("Friday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Friday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfFriAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Friday") %>% select(-WeekDay) %>% dataImputation() -> datfFriAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataFri <- toForecast(datfFriAggByHourM, colIndicator)
-    ForecastFriday <- forecastPlot(forecastedDataFri, colIndicator, "Friday")   
+       ForecastFriday <- forecastPlot(forecastedDataFri, colIndicator, "Friday")   
   } 
   if("Saturday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Saturday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfSatAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Saturday") %>% select(-WeekDay) %>% dataImputation() -> datfSatAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataSat <- toForecast(datfSatAggByHourM, colIndicator)
-    ForecastSaturday <- forecastPlot(forecastedDataSat, colIndicator, "Saturday")   
+     ForecastSaturday <- forecastPlot(forecastedDataSat, colIndicator, "Saturday")   
   } 
   if("Sunday" %in% WeekDay[[1]]) {
-    datfSplitAggByHour %>% filter(WeekDay == "Sunday") %>% select(-WeekDay, -WeekNr) %>% dataImputation() -> datfSunAggByHourM
+    datfSplitAggByHour %>% filter(WeekDay == "Sunday") %>% select(-WeekDay) %>% dataImputation() -> datfSunAggByHourM
+    datfMonAggByHourM <- dataImputation(datfMonAggByHourM)
     forecastedDataSun <- toForecast(datfSunAggByHourM, colIndicator)
     ForecastSunday <- forecastPlot(forecastedDataSun, colIndicator, "Sunday")   
   }    

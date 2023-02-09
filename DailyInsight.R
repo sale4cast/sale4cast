@@ -1,22 +1,12 @@
 plotDailyInsight <- function(datfSplitAggByDay){
   
-  plotDataAndTrend <- ggplot(data = datfSplitAggByDay, mapping = aes(x = make_date(Year, Month, Day), y = NumberOfCustomer)) + 
-    geom_line(size = 1.05, alpha = 1/3) + 
-    geom_point(mapping = aes(color = WeekDay), alpha = 1, size = 2) + 
-    scale_color_discrete(guide = guide_legend(override.aes = list(alpha = 1, size = 2))) + 
-    geom_smooth(span = 0.2, se = FALSE) +
-    scale_x_date(date_labels = "%d-%b-%Y")  + 
-    labs(x = "Date", y = "Number of Sales Order", title = "Sales Order is Represented Over Date. Black and Blue line represents an original and avaerage data.") + 
-    theme( legend.position = "top",
-           plot.title = element_text(size = rel(1.2), face = "bold"), 
-           legend.title = element_text(size = rel(1),face = "bold"), 
-           axis.title.x = element_text(size = rel(1.15), face = "bold"),
-           axis.title.y = element_text(size = rel(1), face = "bold"),
-           axis.text.x =  element_text(size = rel(1.3), face = "bold"),
-           axis.text.y =  element_text(size = rel(1.3), face = "bold")
-    )
-  
-  plotOverWeekDay <- ggplot(data = datfSplitAggByDay, mapping = aes(x = WeekDay, y = NumberOfCustomer)) + 
+  datfSplitAggByDay <- datfSplitAggByDay %>% mutate(Date = make_date(Year, Month, Day), WeekDay = format(Date, "%A"), WeekNr = format(Date, "%W-%V-%b"))
+  nRowBefore <- NROW(datfSplitAggByDay)  
+  if("NumOfSalesOrder" %in% colnames(datfSplitAggByDay)) datfSplitAggByDay <- outlierRemoveSalesOrder(datfSplitAggByDay)
+  numOfOutlier <- nRowBefore - NROW(datfSplitAggByDay)
+  print(numOfOutlier)
+  plotDataAndTrend <- createPlotDataAndTrend(datfSplitAggByDay)
+  plotOverWeekDay <- ggplot(data = datfSplitAggByDay, mapping = aes(x = WeekDay, y = NumOfSalesOrder)) + 
     geom_point(aes(group = Month, color = Month), size = 2.3) + 
     geom_line(alpha = 1/3) + 
     labs(x = "Date", y = "Number of Sales Order", title = "Sales Order is Represented Over WeekDay.") + 
@@ -32,7 +22,7 @@ plotDailyInsight <- function(datfSplitAggByDay){
     ) +
     guides(x = guide_axis(angle = 30))
   
-  plotOverWeekDayAvg <- ggplot(data = datfSplitAggByDay, mapping = aes(x = WeekDay, y = NumberOfCustomer)) + 
+  plotOverWeekDayAvg <- ggplot(data = datfSplitAggByDay, mapping = aes(x = WeekDay, y = NumOfSalesOrder)) + 
     geom_point(aes(group = Month, color = Month), size = 2.3) + 
     geom_line(alpha = 1/3) +
     stat_summary(fun = mean, size = 1, alpha = 1/2, color = "red")  + 
@@ -51,9 +41,12 @@ plotDailyInsight <- function(datfSplitAggByDay){
   
   datfSplitAggByDay %>% mutate(MonthName = format(make_date(Year, Month, Day), "%B")) -> datfSplitAggByDayM 
   
-  plotOverWeekDayAndNr1 <- ggplot(data = datfSplitAggByDayM, mapping = aes(x = WeekNr, y = NumberOfCustomer)) + 
+  if("SalesQty" %in% colnames(datfSplitAggByDayM)) geomQty <- geom_point(aes(color = WeekDay, size = SalesQty), alpha = 1/2)
+  else geomQty <- geom_point(aes(color = WeekDay), size = 2)
+  
+  plotOverWeekDayAndNr1 <- ggplot(data = datfSplitAggByDayM, mapping = aes(x = WeekNr, y = NumOfSalesOrder)) + 
     geom_point(size = 1.2) +
-    geom_point(aes(color = WeekDay, size = salesQty), alpha = 1/2) + 
+    geomQty + 
     geom_line(mapping = aes(group = WeekDay, color = WeekDay, linetype = WeekDay), alpha = 1/3, show.legend = FALSE) +    
     scale_color_discrete(guide = guide_legend(override.aes = list(alpha = 1, size = 2) )) + 
     labs(x = "WeekNr", y = "Number of Sales Order", title = "Sales Order is Represented Over WeekDay, WeekNr and Month.") + 
@@ -67,9 +60,12 @@ plotDailyInsight <- function(datfSplitAggByDay){
       axis.text.y =  element_text(size = rel(1.3), face = "bold")
     ) +
     guides(x = guide_axis(angle = 30))
+
+#  if("SalesQty" %in% colnames(datfSplitAggByDayM)) geomQty <- geom_point(aes(color = WeekDay, size = SalesQty), alpha = 1/2)
+#  else geomQty <- geom_point(aes(color = WeekDay), size = 2)
   
-  plotOverWeekDayAndNr2 <- ggplot(data = datfSplitAggByDayM, mapping = aes(x = WeekDay, y = NumberOfCustomer)) + 
-    geom_point(aes(color = WeekNr, size = salesQty), alpha = 1/2) + 
+  plotOverWeekDayAndNr2 <- ggplot(data = datfSplitAggByDayM, mapping = aes(x = WeekDay, y = NumOfSalesOrder)) + 
+    geomQty + 
     scale_color_discrete(guide = guide_legend(override.aes = list(alpha = 1, size = 2))) +
     geom_line(mapping = aes(group = WeekNr, color = WeekNr, linetype = WeekNr), alpha = 1/3, show.legend = FALSE) +
     facet_wrap(~MonthName, ncol = 2) +
