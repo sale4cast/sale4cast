@@ -76,13 +76,7 @@ shinyServer(function(input,output,session){
     splitedDatfAggByHour <- splitedDatfYMDHMS()
       datfSplitAggByHour <- splitedDatfAggByHour[[1]]
             colIndicator <- splitedDatfAggByHour[[2]]    
-    plotList <- plotHourlyInsight(datfSplitAggByHour, colIndicator)    
-    tagList(
-      renderPlot(plotList[[1]]+plotList[[2]]),
-      renderPlot(plotList[[3]]),
-      if("SalesQty" %in% colnames(datfSplitAggByHour)) renderPlot(plotList[[4]] + plotList[[5]])      
-      else renderPlot(plotList[[4]])
-    )
+            plotHourlyInsight(datfSplitAggByHour, colIndicator)    
   })
   
   output$plotHourlyForecastUI <- renderUI({
@@ -102,13 +96,7 @@ shinyServer(function(input,output,session){
       datfSplitAggByHour <- splitedDatfAggByHour[[1]]
             colIndicator <- splitedDatfAggByHour[[2]]
        datfSplitAggByDay <- hourToDay(datfSplitAggByHour)
-             plotInsight <- plotDailyInsight(datfSplitAggByDay)    
-    tagList(
-      renderPlot(plotInsight[[1]]),
-      renderPlot(plotInsight[[2]] + plotInsight[[3]]),
-      renderPlot(plotInsight[[4]]),
-      renderPlot(plotInsight[[5]])      
-    )
+    plotDailyInsight(datfSplitAggByDay)    
   })  
   
   output$plotDailyForecastUI <- renderUI({
@@ -116,14 +104,7 @@ shinyServer(function(input,output,session){
        datfSplitAggByHour <- splitedDatfAggByHour[[1]]
              colIndicator <- splitedDatfAggByHour[[2]]   
         datfSplitAggByDay <- hourToDay(datfSplitAggByHour)             
-    plotListDailyForecast <- dailyForecastAndPlot(datfSplitAggByDay)
-    tagList(
-      renderPlot(plotListDailyForecast[[1]]),
-      renderPlot(plotListDailyForecast[[2]]),
-      renderPlot(plotListDailyForecast[[3]]),
-      renderDataTable(plotListDailyForecast[[4]]),
-      downloadButton('exportForecast',"Download Report")
-    )
+     dailyForecastAndPlot(datfSplitAggByDay)
   })
   
   pdfTitle<- as.character(format(Sys.Date(),"%A"))  

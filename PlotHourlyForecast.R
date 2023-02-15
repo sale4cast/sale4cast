@@ -31,6 +31,7 @@ forecastPlot <- function(forecastedData, colIndicator, dayName) {
     theme(
       plot.title = element_text(size = rel(1.2), face = "bold"), 
       legend.title = element_text(size = rel(1),face = "bold"), 
+      legend.position = "top",
       axis.title.x = element_text(size = rel(1.15), face = "bold"),
       axis.title.y = element_text(size = rel(1), face = "bold"),
       axis.text.x =  element_text(size = rel(1.3), face = "bold"),
@@ -106,8 +107,7 @@ plotHourlyForecast <- function(datfSplitAggByHour, colIndicator) {
   pictureTable <- tagList(
     tags$h5( tags$b(
       dateRange, "Last Day of Observation - ", tags$span(style="color:red", format(lastDay, "%A"))        
-    )
-    ),
+    )),
     if (format(forecastFirstDay, "%A") %in% WeekDay[[1]]) renderPlot(plotVec[[as.numeric(format(forecastFirstDay, "%u"))]]),
     if (format(forecastFirstDay, "%A") %in% WeekDay[[1]]) renderDataTable(ForecastedDataVec[[as.numeric(format(forecastFirstDay, "%u"))]], options = list(pageLength = 6, info = FALSE)),
     

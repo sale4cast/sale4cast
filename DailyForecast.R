@@ -9,10 +9,11 @@ plotSeasonDaily <- function(tSeriesTibble, seasonStrength) {
     geom_point(mapping = aes(color = format(Date, "%A")), size = 2.3) +
     scale_x_date(date_labels = "%d-%b-%Y")  + 
     scale_color_discrete(guide = guide_legend(title = "WeekDay", override.aes = list(alpha = 1, size = 2))) +
-    labs(x = "Date", y = "Number of Sales Order", title = paste("Original Data - Average Data = Seasonality      Seasonal Strength = ", round(seasonStrength, digits = 4)," out of 1.0")) + 
+    labs(x = "Date", y = "Number of Sales Order") + 
     theme(
       legend.position = "top",
       plot.title = element_text(size = rel(1.2), face = "bold"), 
+      plot.subtitle = element_text(size = rel(1.0), face = "bold"),
       legend.title = element_text(size = rel(1),face = "bold"), 
       #      legend.background = element_rect(fill = "lightblue3", colour = NA),
       axis.title.x = element_text(size = rel(1.15), face = "bold"),
@@ -23,7 +24,9 @@ plotSeasonDaily <- function(tSeriesTibble, seasonStrength) {
       #      panel.background = element_rect(fill = "lightblue", colour = NA),
       #      axis.text = element_text(colour = "linen"),
       #      axis.title = element_text(colour = "linen")      
-    ) 
+    ) +
+    guides(x = guide_axis(angle = 20))
+  
   return(plotSeason)
 }
 
@@ -39,7 +42,7 @@ plotForecastDaily <- function(forecastedData) {
     geom_point(mapping = aes(y = Forecast_Data, color = format(Date, "%A")), size = 2.3) +
     scale_x_date(date_labels = "%d-%b-%Y")  + 
     scale_color_discrete(guide = guide_legend(title = "WeekDay", override.aes = list(alpha = 1, size = 2))) +
-    labs(x = "Date", y = "Number of Sales Order", title = "Black and Blue line represent an original and forecast data.") + 
+    labs(x = "Date", y = "Number of Sales Order") + 
     theme(
       legend.position = "top",
       plot.title = element_text(size = rel(1.2), face = "bold"), 
@@ -48,7 +51,9 @@ plotForecastDaily <- function(forecastedData) {
       axis.title.y = element_text(size = rel(1), face = "bold"),
       axis.text.x =  element_text(size = rel(1.3), face = "bold"),
       axis.text.y =  element_text(size = rel(1.3), face = "bold")
-    )
+    ) +
+    guides(x = guide_axis(angle = 20))
+  
   return(plotForecast)
 }
 
@@ -83,7 +88,7 @@ createForecastPlot <- function(dateIndexSeries, freq, filteredWeekDay, dataForAl
          tSeries <- ts(data = dataForAlgo$NumOfSalesOrder, frequency = freq)
    tSeriesTibble <- tSeries %>% mstl() %>% as_tibble() %>% add_column(Date = tail(dateIndexSeries[,1], (nRow - (nRow %% freq))), .before = "Data")    
    trendStrength <- max(0, 1 - (var(tSeriesTibble[[5]])/(var(tSeriesTibble[[3]] + tSeriesTibble[[5]]))))
-  seasonStrength <- max(0, 1 - (var(tSeriesTibble[[5]])/(var(tSeriesTibble[[4]] + tSeriesTibble[[5]]))))    
+  seasonStrength <<- max(0, 1 - (var(tSeriesTibble[[5]])/(var(tSeriesTibble[[4]] + tSeriesTibble[[5]]))))    
             nday <- ceiling(NROW(dataForAlgo)/freq) * 7 + freq
       plotSeason <- plotSeasonDaily(tSeriesTibble, seasonStrength)
          dateCol <- make_date(dataForAlgo[[1,1]],dataForAlgo[[1,2]],dataForAlgo[[1,3]]) + 0:(nday-1)
@@ -135,5 +140,16 @@ dailyForecastAndPlot  <- function(datfSplitAggByDay) {
        dataForAlgo$NumOfSalesOrder <- ts_clean_vec(dataForAlgo$NumOfSalesOrder, period = freq, lambda = NULL)
        if("SalesQty" %in% colnames(dataForAlgo)) dataForAlgo$SalesQty <- ts_clean_vec(dataForAlgo$SalesQty, period = freq, lambda = NULL)       
       forecastInfo <- createForecastPlot(dateIndexSeries, freq, filteredWeekDay, dataForAlgo, nRow) 
-  return(list(plotDataAndTrend, plotSeason = forecastInfo[[1]], plotForecast = forecastInfo[[2]], forecastTable = forecastInfo[[3]]))
+      tagList(
+        tags$h5(tags$b("Black and Blue Line Represents Original and Avaerage Data.")),
+        renderPlot(plotDataAndTrend),
+        tags$h5( tags$b(
+          "Original Data - Average Data = Seasonality,    Seasonal Strength = ", round(seasonStrength, digits = 4)," out of 1.0"        
+        )),
+        renderPlot(forecastInfo[[1]]),
+        tags$h5(tags$b("Black and Blue Line Represent Original and Forecast Data.")),
+        renderPlot(forecastInfo[[2]]),
+        renderDataTable(forecastInfo[[3]])
+      )
+#  return(list(plotDataAndTrend, plotSeason = forecastInfo[[1]], plotForecast = forecastInfo[[2]], forecastTable = forecastInfo[[3]]))
 }
