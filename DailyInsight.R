@@ -2,7 +2,7 @@ plotDailyInsight <- function(datfSplitAggByDay){
   
   datfSplitAggByDay <- datfSplitAggByDay %>% mutate(Date = make_date(Year, Month, Day), WeekDay = format(Date, "%A"), MonthName = format(Date, "%B"))
   nRowBefore <- NROW(datfSplitAggByDay)  
-  if("NumOfSalesOrder" %in% colnames(datfSplitAggByDay)) datfSplitAggByDay <- outlierRemoveSalesOrder(datfSplitAggByDay)
+  if(NROW(datfSplitAggByDay) > 1 && ("NumOfSalesOrder" %in% colnames(datfSplitAggByDay))) datfSplitAggByDay <- outlierRemoveSalesOrder(datfSplitAggByDay)
   numOfOutlier <- nRowBefore - NROW(datfSplitAggByDay)
   print(numOfOutlier)
   plotDataAndTrend <- createPlotDataAndTrend(datfSplitAggByDay)
@@ -12,7 +12,7 @@ plotDailyInsight <- function(datfSplitAggByDay){
     geom_line(alpha = 1/3) +
     stat_summary(fun = mean, size = 1, alpha = 1/2, color = "red")  + 
     labs(x = "Date", y = "Number of Sales Order") + 
-    scale_colour_continuous(breaks=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), labels=c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), guide = guide_legend()) + 
+    scale_colour_continuous(breaks=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), labels=\(x)c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")[x], guide = guide_legend()) + 
     theme(
       plot.title = element_text(size = rel(1.2), face = "bold"), 
       legend.title = element_text(size = rel(1),face = "bold"), 

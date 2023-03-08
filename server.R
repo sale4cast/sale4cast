@@ -26,6 +26,11 @@ library(tidyverse)
 
 shinyServer(function(input,output,session){
   
+  hourToDay <- function(datfSplitAggByHour) {
+    datfSplitAggByDay <- datfSplitAggByHour %>% ungroup() %>% select(-Hour, -WeekDay) %>% group_by(Year, Month, Day) %>% summarise_all(sum)        
+    return(datfSplitAggByDay)
+  } %>% memoise()  
+  
   getDataFrame <- reactive({
     
     validate(
@@ -56,12 +61,7 @@ shinyServer(function(input,output,session){
       return(datf)
     }
   })
-# Story: If the dateTime format is like ymd_h and a total NumOfSalesOrder is almost equal to a total number of Row. Column has a unique hour.   
-# Story: It can also happen that hourly time stamp came uniquely once but it is in the format of ymd_hms, ymd_hm, ymd_h, ymd_hm or ymd_hms.   
-# Step1: check the dateTimeFormat string to ensure whether the format looks like ymd_h, dmy_h, mdy_h, ymd_hm or ymd_hms. 
-# Step2: Sum of NumOfSalesOrder which should be close to a total number of Row i.e, sum(NumOfSalesOrder)/NROW(datf) < 1.6. However the sum(salesQty)/NROW(datf) should be high enough.
-# Step3: Even if a format looks like ymd_hms ymd_hm, sum(NumOfSalesOrder)/NROW(datf) < 1.6 needs to be checked.  
-
+  
   splitedDatfYMDHMS <- reactive({
     datf <- getDataFrame()
     datf <- na.omit(datf)
@@ -72,59 +72,67 @@ shinyServer(function(input,output,session){
     return(list(datfSplitAggByHour, colIndicator))
   })
   
-  output$plotHourlyInsightUI <- renderUI({
-    splitedDatfAggByHour <- splitedDatfYMDHMS()
-      datfSplitAggByHour <- splitedDatfAggByHour[[1]]
-            colIndicator <- splitedDatfAggByHour[[2]]    
-            plotHourlyInsight(datfSplitAggByHour, colIndicator)    
+  
+  output$createSlider <- renderUI({
+    datfSplitAggByDay <- NULL
+    splitedDatfAggByHour <- splitedDatfYMDHMS()    
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    datfSplitAggByDay <- hourToDay(datfSplitAggByHour)
+    firstRow <- head(datfSplitAggByDay,1) 
+    lastRow <- tail(datfSplitAggByDay,1)
+    from  <- make_date(firstRow[[1,1]], firstRow[[1,2]], firstRow[[1,3]])
+    to    <- make_date(lastRow[[1,1]], lastRow[[1,2]], lastRow[[1,3]])
+    toMin <- as.Date(to - dmonths(1))
+    
+    from <- as.Date("2013-11-01")
+    to <- as.Date("2013-12-31")
+    
+    if(toMin > from) 
+      toMin = toMin
+    else
+      toMin = from
+    
+    toMin <- from
+    sliderInput("dateInp", "DateRange", value = c(toMin,to), min = from, max = to, timeFormat="%d-%b-%Y")
+    
+  })  
+
+  splitedDatfYMDHMS2 <- eventReactive(input$dateInp, {
+    splitedDatfAggByHour <- splitedDatfYMDHMS()    
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    datfSplitAggByHour <- datfSplitAggByHour %>% mutate(Date = make_date(Year, Month, Day)) %>% filter(Date >= input$dateInp[1], Date <= input$dateInp[2]) %>% select(-Date) #as.Date("2013-12-10")
+    return(list(datfSplitAggByHour, splitedDatfAggByHour[[2]]))
   })
   
+  output$plotHourlyInsightUI <- renderUI({
+    splitedDatfAggByHour <- splitedDatfYMDHMS2()
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    colIndicator <- splitedDatfAggByHour[[2]]    
+    plotHourlyInsight(datfSplitAggByHour, colIndicator)    
+  })
+
   output$plotHourlyForecastUI <- renderUI({
-    splitedDatfAggByHour <- splitedDatfYMDHMS()
-      datfSplitAggByHour <- splitedDatfAggByHour[[1]]
-            colIndicator <- splitedDatfAggByHour[[2]]    
+    splitedDatfAggByHour <- splitedDatfYMDHMS2()
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    colIndicator <- splitedDatfAggByHour[[2]]    
     plotHourlyForecast(datfSplitAggByHour, colIndicator)
   })
   
-  hourToDay <- function(datfSplitAggByHour) {
-    datfSplitAggByDay <- datfSplitAggByHour %>% ungroup() %>% select(-Hour, -WeekDay) %>% group_by(Year, Month, Day) %>% summarise_all(sum)        
-    return(datfSplitAggByDay)
-  } %>% memoise()
-  
   output$plotDailyInsightUI <- renderUI({
-    splitedDatfAggByHour <- splitedDatfYMDHMS()
-      datfSplitAggByHour <- splitedDatfAggByHour[[1]]
-            colIndicator <- splitedDatfAggByHour[[2]]
-       datfSplitAggByDay <- hourToDay(datfSplitAggByHour)
+    splitedDatfAggByHour <- splitedDatfYMDHMS2()
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    colIndicator <- splitedDatfAggByHour[[2]]
+    datfSplitAggByDay <- hourToDay(datfSplitAggByHour)
     plotDailyInsight(datfSplitAggByDay)    
   })  
   
   output$plotDailyForecastUI <- renderUI({
-     splitedDatfAggByHour <- splitedDatfYMDHMS()
-       datfSplitAggByHour <- splitedDatfAggByHour[[1]]
-             colIndicator <- splitedDatfAggByHour[[2]]   
-        datfSplitAggByDay <- hourToDay(datfSplitAggByHour)             
-     dailyForecastAndPlot(datfSplitAggByDay)
+    splitedDatfAggByHour <- splitedDatfYMDHMS2()
+    datfSplitAggByHour <- splitedDatfAggByHour[[1]]
+    colIndicator <- splitedDatfAggByHour[[2]]   
+    datfSplitAggByDay <- hourToDay(datfSplitAggByHour)             
+    dailyForecastAndPlot(datfSplitAggByDay)
   })
   
-  pdfTitle<- as.character(format(Sys.Date(),"%A"))  
-  
-  output$exportForecast <- downloadHandler(
-    #filename is a default argument of downloadHandler function. A string of the filename, including extension or a function that returns such a string..
-    filename <- function() {
-      paste("report-", Sys.Date(), ".pdf")
-    },
-    #https://community.rstudio.com/t/download-shiny-report-from-renderdatatables-and-plots-to-pdf/23804    
-    #content is a also default argument of downloadHandler function. A function that takes a single argument "file" that is a file path (string) of a nonexistent temp file, and writes the content to that file path. 
-    content <- function(file) {
-      datfSplitAggByDay <- splitedDatfYMDHMS()[[1]]
-      colIndicator <- splitedDatfYMDHMS()[[3]]    
-      plotListDailyForecast <- createDailyAnalysis(datfSplitAggByDay)
-      pdf(file,title = pdfTitle,paper = "a4") # open the pdf device
-      grid.arrange(plotListDailyForecast[[1]], plotListDailyForecast[[2]], plotListDailyForecast[[3]], clip = TRUE)
-      grid.arrange(tableGrob(plotListDailyForecast[[4]]), clip = TRUE) 
-      dev.off()  # turn the device off
-    }
-  )
 })
 

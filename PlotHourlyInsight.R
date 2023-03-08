@@ -4,11 +4,11 @@ plotHourlyInsight <- function(datfSplitAggByHour, colIndicator)
   datfSplitAggByHour <- datfSplitAggByHour %>% mutate(DateTime = make_datetime(Year, Month, Day, Hour))
   nRowBefore <- NROW(datfSplitAggByHour)  
   
-  if("NumOfSalesOrder" %in% colnames(datfSplitAggByHour)) datfSplitAggByHour <- outlierRemoveSalesOrder(datfSplitAggByHour)
+  if(NROW(datfSplitAggByHour) > 1 && ("NumOfSalesOrder" %in% colnames(datfSplitAggByHour))) datfSplitAggByHour <- outlierRemoveSalesOrder(datfSplitAggByHour)
   numOfOutlier <- nRowBefore - NROW(datfSplitAggByHour)
   print(numOfOutlier)
   
-  cols <- c("Sunday" = "red", "Monday" = "#B38867", "Tuesday" = "#EBDF00", "Wednesday" = "#FAAF08", "Thursday" = "#4D648D", "Friday" = "darkgrey", "Saturday" = "#EE693F")  
+  cols <- c("Sunday" = "red", "Monday" = "#197AEB", "Tuesday" = "#49be25", "Wednesday" = "#FAAF08", "Thursday" = "#F606C9", "Friday" = "#7C7F82", "Saturday" = "#473436")  
   oriData <- ggplot(data = datfSplitAggByHour) + 
     geom_point(mapping = aes(x = DateTime, y = NumOfSalesOrder, color = WeekDay)) + 
     scale_x_datetime(labels = date_format("%d-%m-%y %H:%M:%S"))  + 
@@ -58,7 +58,7 @@ plotHourlyInsight <- function(datfSplitAggByHour, colIndicator)
     guides(x = guide_axis(angle = 30))
   
   if("SalesQty" %in% colnames(datfSplitAggByHour)) {
-    datfSplitAggByHour <- outlierRemoveSalesQty(datfSplitAggByHour)
+    if(NROW(datfSplitAggByHour) > 1) datfSplitAggByHour <- outlierRemoveSalesQty(datfSplitAggByHour)
     datfSplitAggByHour %>% group_by(Hour) %>% summarise(SalesQtyPerCustomer = sum(SalesQty)/sum(NumOfSalesOrder)) -> SalesQtyPerHour
     datfSplitAggByHourAvgValue <- datfSplitAggByHour %>% ungroup() %>% select(Hour, WeekDay, NumOfSalesOrder, SalesQty) %>% group_by(Hour, WeekDay) %>% summarise_all(list(mean))    
     geomQty <- geom_point(aes(color = WeekDay, size = SalesQty), alpha = 1/2) 
