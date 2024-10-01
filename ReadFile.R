@@ -1,12 +1,12 @@
 readingFiles<- function(fileName)({
   
   fLine <- readLines(fileName, n = 1)
-  print(fLine)
+  #print(fLine)
   if(grepl(".xlsx",fileName) || grepl(".xls",fileName)){
     
     datf <- read.xlsx(fileName,colNames = TRUE)
     datf <- as.tibble(datf)
-    print(datf)
+    #print(datf)
     return(datf)
   }
   # https://raw.githubusercontent.com/ASKurz/Applied-Longitudinal-Data-Analysis-with-brms-and-the-tidyverse/master/data/tolerance1_pp.txt    
@@ -35,24 +35,24 @@ readingFiles<- function(fileName)({
   else if(grepl(".txt",fileName) || grepl(".dat",fileName)){
     
     if (grepl("\\|", fLine)){
-      print("|")
+      #print("|")
       datf <- read_delim(fileName,delim = "|",col_types =  cols(.default = col_character()))
       
     } 
     else if (grepl(" ", fLine)){
-      print("Space")
+      #print("Space")
       datf <- read_delim(fileName,delim = " ",col_types =  cols(.default = col_character()))
     }
     else if (grepl("  ", fLine)){
-      print("  ")
+      #print("  ")
       datf <- read_delim(fileName,delim = "  ",col_types =  cols(.default = col_character()))
     }
     else if (grepl(";", fLine)){
-      print(";")
+      #print(";")
       datf <- read_delim(fileName,delim = ";",col_types =  cols(.default = col_character()))
     }
     else if (grepl(",", fLine)){
-      print(",")
+      #print(",")
       datf <- read_delim(fileName,delim = ",",col_types =  cols(.default = col_character()))
     }
     

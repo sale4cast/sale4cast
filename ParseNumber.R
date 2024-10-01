@@ -123,8 +123,8 @@ checkInteger <- function(numVec) {
 }
 getNumberLocale <- function(numVec){
   numberLocale <- findNumberLocale(numVec)
-  print(paste("Grouping Mark = ", numberLocale[[1]]))
-  print(paste("Decimal Mark = ", numberLocale[[2]]))
+  #print(paste("Grouping Mark = ", numberLocale[[1]]))
+  #print(paste("Decimal Mark = ", numberLocale[[2]]))
   
   groupingMark <- numberLocale[[1]]
   decimalMark  <- numberLocale[[2]]   

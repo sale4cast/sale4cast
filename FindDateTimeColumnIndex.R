@@ -1,7 +1,6 @@
 nRowToFindDateTimeFormat <- 27000
     nRowToCheckTimeSpace <- 2880
    nRowToGetNumberLocale <- 25
-   salesVsHourFactor <- 1.4
 
 guessInitialSalesOrderColIndex <- function(numOfCol, dateTimeColIndex, dateColIndex, timeColIndex) {
   if(dateTimeColIndex != 0 && dateColIndex == 0 && timeColIndex == 0 && numOfCol > dateTimeColIndex) return(dateTimeColIndex + 1) #Ex: A76, 12/17/2022T23:12:32Z, 27 
@@ -41,11 +40,11 @@ findTimeColIndex <- function(numOfCol,datf10Row, dateColIndex) {
 
 findDateTimeColumnIndex <- function(datf)
 {
-  dateTimeColIndex <- dateColIndex <- timeColIndex <- 0
+  dateTimeColIndex <- dateColIndex <- timeColIndex <- onlyOneNumberCol <- 0
   dateTimeFormat <- dateFormat <- timeFormat <- "0"
   numOfCol <- NCOL(datf)
   
-    datf10Row <- head(datf,10)
+    datf10Row <- head(datf,20)
     for(colNo in 1:numOfCol) {
       if((dateTimeFormat = findDateTimeFormat(datf10Row[[colNo]])) != "0") {
         dateTimeColIndex = colNo
@@ -57,65 +56,72 @@ findDateTimeColumnIndex <- function(datf)
         break
       }
     }
-    if(dateTimeColIndex == 0 && dateColIndex == 0 && timeColIndex == 0) stop("There is no time stamp")
+    if(dateTimeColIndex == 0 && dateColIndex == 0 && timeColIndex == 0) 
+      if(!is.null(getNumberLocale(datf10Row[[1]]))) onlyOneNumberCol <- 1
+      else  stop("There is no time stamp or not a single numeric column")
   
-  return(list(dateTimeColIndex, dateColIndex, timeColIndex))
+  return(list(dateTimeColIndex, dateColIndex, timeColIndex, onlyOneNumberCol))
 }
 
-#Story:
-#1.) From a DateTime column, find Avg Number of Sales over an Hour. If DateTime column is spaced hourly, avgNumOfSalesOverHour should be 1.
-#2.) If DateTime column is spaced minutely, avgNumOfSalesOverHour should be more than 1.
-#3.) To check whether a data has been spaced as hourly or minutely, an avgNumOfSalesOverHour is compared with a value of salesVsHourFactor.
-#4.) The value of a salesVsHourFactor is defined around 1.4.
-addSalesOrderAndQty <- function(datf, datfSplitAggByHour, salesOrderColIndex, numOfCol) {
+addSalesOrderAndQty <- function(datf, datfSplitAggByHour, salesOrderColIndex, timeSpace, numOfCol) {
              datfHead <- head(datf, nRowToGetNumberLocale)
-  datfSplitAggByHourM <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise(NumOfSalesOrder = n())
-   avgNumOfSalesOverHour <- mean(datfSplitAggByHourM$NumOfSalesOrder)
+  datfSplitAggByHourM <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise(NumberOfCustomer = n())
      salesQtyColIndex <- 0
-         
-  if(avgNumOfSalesOverHour >= salesVsHourFactor && salesOrderColIndex == 0) 
-     datfSplitAggByHour <- datfSplitAggByHourM
-         
-  else if(avgNumOfSalesOverHour >= salesVsHourFactor && salesOrderColIndex != 0) {
-    while(salesOrderColIndex <= numOfCol && (!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]])))) {
+  if(timeSpace != "Equal" && salesOrderColIndex == 0) {
+    datfSplitAggByHour <- datfSplitAggByHourM
+    #colName <- c('Number of Customer')
+  }
+  else if(timeSpace != "Equal" && salesOrderColIndex != 0) {
+    while(salesOrderColIndex <= numOfCol) {
+      if(!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]]))) {
         SalesQty <- parseNumber(numberLocale, datf[[salesOrderColIndex]])
-        if(sum(SalesQty)/NROW(SalesQty) >= 1 && sum(SalesQty == 0)/NROW(SalesQty) < 0.21) {
-          datfSplitAggByHour <- datfSplitAggByHour %>% add_column(SalesQty)
+        #colName <- c('Number of Customer', colnames(datf)[salesOrderColIndex])
+        sumSalesQty <- sum(na.omit(SalesQty))
+        nRowSalesQty <- NROW(na.omit(SalesQty))
+        if(sumSalesQty / nRowSalesQty >= 1 && sum(na.omit(SalesQty) == 0)/nRowSalesQty < 0.21) {
+          datfSplitAggByHour$SalesQty <- SalesQty
+          salesQtyColIndex = salesOrderColIndex     
           break
         } 
+      }
       salesOrderColIndex = salesOrderColIndex + 1
     }
-    if("SalesQty" %in% colnames(datfSplitAggByHour)) datfSplitAggByHour <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise(NumOfSalesOrder = n(), SalesQty = sum(SalesQty))
+    if("SalesQty" %in% colnames(datfSplitAggByHour)) {
+      datfSplitAggByHour <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise(NumberOfCustomer = n(), SalesQty = sum(na.omit(SalesQty))) 
+      names(datfSplitAggByHour)[6] <- names(datf)[salesQtyColIndex]
+    }
     else datfSplitAggByHour <- datfSplitAggByHourM
   }
-         
-  else if(avgNumOfSalesOverHour < salesVsHourFactor && salesOrderColIndex != 0) {
-    
-    while(salesOrderColIndex <= numOfCol && (!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]]))) && (salesQtyColIndex = salesOrderColIndex + 1)) {
-        datfSplitAggByHour <- datfSplitAggByHour %>% add_column(NumOfSalesOrder = parseNumber(numberLocale, datf[[salesOrderColIndex]]))
-        if("NumOfSalesOrder" %in% colnames(datfSplitAggByHour)) break
-        salesOrderColIndex = salesOrderColIndex + 1
+  else if(timeSpace == "Equal" && salesOrderColIndex != 0) {
+    while(salesOrderColIndex <= numOfCol) {
+      if(!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]]))) {
+          salesQtyColIndex = salesOrderColIndex + 1        
+          datfSplitAggByHour$NumberOfCustomer <- parseNumber(numberLocale, datf[[salesOrderColIndex]])
+          names(datfSplitAggByHour)[5] <- names(datf)[salesOrderColIndex]
+          break
+      } 
+      salesOrderColIndex = salesOrderColIndex + 1
     }
-    
-    while(salesQtyColIndex != 0 && salesQtyColIndex <= numOfCol && (!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]])))) {
-      SalesQty <- parseNumber(numberLocale, datf[[salesQtyColIndex]])
-      if(mean(datfSplitAggByHour$NumOfSalesOrder) <= mean(SalesQty)) { 
-        datfSplitAggByHour <- datfSplitAggByHour %>% add_column(SalesQty)
-        break
+    while(salesQtyColIndex != 0 && salesQtyColIndex <= numOfCol) {
+      if(!is.null(numberLocale <- getNumberLocale(datfHead[[salesQtyColIndex]]))) {
+        SalesQty <- parseNumber(numberLocale, datf[[salesQtyColIndex]])
+        #colName <- c(colName, colnames(datf)[salesQtyColIndex])
+        if(mean(datfSplitAggByHour$NumberOfCustomer) <= mean(SalesQty)) { 
+          datfSplitAggByHour$SalesQty <- SalesQty
+          names(datfSplitAggByHour)[6] <- names(datf)[salesQtyColIndex]
+          break
+        }
       }
       salesQtyColIndex = salesQtyColIndex + 1
     }
     datfSplitAggByHour <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise_all(list(sum))
   }
-  
   datfSplitAggByHour <- na.omit(datfSplitAggByHour)
+  #browser()
   return(datfSplitAggByHour)
 }
-#Story:
-#1.) Identify a DateTime or Date and Time column from a datf.
-#2.) Extract the identified column and parse it into ISO format.
-#3.) Split the ISO formatted DateTime column into Year, Month, Day, Hour column and make a new Tibble 'datfSplitAggByHour'.
-splitDatfForSelectedCol <- function(datf, dateTimeColIndex, dateColIndex, timeColIndex) {
+
+splitDatfForDateTimeCol <- function(datf, dateTimeColIndex, dateColIndex, timeColIndex) {
   salesOrderColIndex <- qtyColIndex <- dateTimeISO <- timeISO <- SalesQty <- 0
   datfSplitAggByHour <- NumOfSalesOrder <- NULL
             numOfCol <- NCOL(datf)
@@ -126,15 +132,99 @@ splitDatfForSelectedCol <- function(datf, dateTimeColIndex, dateColIndex, timeCo
     salesOrderColIndex <- guessInitialSalesOrderColIndex(numOfCol, dateTimeColIndex, dateColIndex, timeColIndex)
     datfSplitAggByHour <- tibble(Year = year(dateTimeISO), Month = month(dateTimeISO), Day = day(dateTimeISO), Hour = hour(dateTimeISO))
   }
-  
   else if(dateTimeColIndex == 0 && dateColIndex != 0 && timeColIndex != 0) {
     dateFormat <- findDateTimeFormat(head(datf[[dateColIndex]], nRowToFindDateTimeFormat))
-    dateISO <- convertToISOFormat(dateFormat, datf[[dateColIndex]]) 
-    timeISO <- parse_time(datf[[timeColIndex]])
+       dateISO <- convertToISOFormat(dateFormat, datf[[dateColIndex]]) 
+       timeISO <- parse_time(datf[[timeColIndex]])
     salesOrderColIndex <- guessInitialSalesOrderColIndex(numOfCol, dateTimeColIndex, dateColIndex, timeColIndex)
     datfSplitAggByHour <- tibble(Year = year(dateISO), Month = month(dateISO), Day = day(dateISO), Hour = hour(timeISO))
   }
-          
-  return(addSalesOrderAndQty(datf, datfSplitAggByHour, salesOrderColIndex, numOfCol))
+
+  timeSpace <- timeSpaceFromDiff <- timeSpaceFromMinCount <- "Inequal"
+  if(NROW(dateTimeISO) > 2)
+  {
+    diffDT <- tibble(diffDateTime = diff(dateTimeISO))
+    count <- diffDT %>% group_by(diffDateTime) %>% summarise(freqOfDiffDateTime = n())
+    if(100 * max(count$freqOfDiffDateTime) / NROW(dateTimeISO) >= 40) 
+      timeSpaceFromDiff <- "Equal"
+    
+    data <- datfSplitAggByHour %>% group_by(Year, Month, Day, Hour) %>% summarise(freqOfMinuteWithinHour = n())     
+    count <- data %>% group_by(freqOfMinuteWithinHour) %>% summarise(fregOfFreq = n())
+    if(100 * max(count$fregOfFreq) / NROW(data$freqOfMinuteWithinHour) >= 40)  
+      timeSpaceFromMinCount <- "Equal"  
+  }
+  if(timeSpaceFromDiff == "Equal" || timeSpaceFromMinCount == "Equal")
+    timeSpace = "Equal"
+  #print(paste("timeSpace = ",timeSpace))
+  splitedDatf <- addSalesOrderAndQty(datf, datfSplitAggByHour, salesOrderColIndex, timeSpace, numOfCol)
+  return(splitedDatf)
 }
 
+splitDatfForDateColWithQty <- function(datf, dateTimeColIndex, dateColIndex, timeColIndex) {
+  salesOrderColIndex  <- timeISO <- SalesQty <- 0
+  splitedDatf <- NumOfSalesOrder <- NULL
+  numOfCol <- NCOL(datf)
+  
+    dateFormat <- findDateTimeFormat(head(datf[[dateColIndex]], nRowToFindDateTimeFormat))
+    dateISO <- convertToISOFormat(dateFormat, datf[[dateColIndex]]) 
+    salesOrderColIndex <- guessInitialSalesOrderColIndex(numOfCol, dateTimeColIndex, dateColIndex, timeColIndex)
+    splitedDatf <- tibble(Year = year(dateISO), Month = month(dateISO), Day = day(dateISO))
+    datfHead <- head(datf, nRowToGetNumberLocale)
+    
+    while(salesOrderColIndex <= numOfCol && (!is.null(numberLocale <- getNumberLocale(datfHead[[salesOrderColIndex]]))) && (salesQtyColIndex = salesOrderColIndex + 1)) {
+      splitedDatf <- splitedDatf %>% add_column(NumOfSalesOrder = parseNumber(numberLocale, datf[[salesOrderColIndex]]))
+      #colName <- c(colnames(datf)[salesOrderColIndex])
+      if("NumOfSalesOrder" %in% colnames(splitedDatf)) break
+      salesOrderColIndex = salesOrderColIndex + 1
+    }
+    
+    while(salesQtyColIndex != 0 && salesQtyColIndex <= numOfCol && (!is.null(numberLocale <- getNumberLocale(datfHead[[salesQtyColIndex]])))) {
+      SalesQty <- parseNumber(numberLocale, datf[[salesQtyColIndex]])
+      #colName <- c(colName, colnames(datf)[salesQtyColIndex])
+      if(mean(splitedDatf$NumOfSalesOrder) <= mean(SalesQty)) { 
+        splitedDatf <- splitedDatf %>% add_column(SalesQty)
+        break
+      }
+      salesQtyColIndex = salesQtyColIndex + 1
+    }
+  
+  return(splitedDatf)
+}
+
+splitDatfForDateCol <- function(datf, dateTimeColIndex, dateColIndex, timeColIndex) {
+  salesOrderColIndex  <- timeISO <- SalesQty <- 0
+  splitedDatf <- NumOfSalesOrder <- NULL
+  numOfCol <- NCOL(datf)
+  dateFormat <- findDateTimeFormat(head(datf[[dateColIndex]], nRowToFindDateTimeFormat))
+  dateISO <- convertToISOFormat(dateFormat, datf[[dateColIndex]]) 
+  salesOrderColIndex <- guessInitialSalesOrderColIndex(numOfCol, dateTimeColIndex, dateColIndex, timeColIndex)
+  splitedDatf <- tibble(Year = year(dateISO), Month = month(dateISO), Day = day(dateISO))
+  datfHead <- head(datf, nRowToGetNumberLocale)
+  colIndex = 4
+  
+  while(salesOrderColIndex <= numOfCol) {
+    if(NROW(na.omit(datfHead[[salesOrderColIndex]])) > 1 && !is.null(numberLocale <- getNumberLocale(na.omit(datfHead[[salesOrderColIndex]])))) {
+      splitedDatf <- splitedDatf %>% add_column(parseNumber(numberLocale, datf[[salesOrderColIndex]]))
+      names(splitedDatf)[colIndex] <- names(datf)[salesOrderColIndex]
+      colIndex = colIndex + 1        
+    }
+    salesOrderColIndex = salesOrderColIndex + 1
+  }
+  return(splitedDatf)
+}
+
+splitDatfForNumericCol <- function(datf) {
+  splitedDatf <- tibble(index = 1:NROW(datf))
+  numOfCol <- NCOL(datf)
+  datfHead <- head(datf, nRowToGetNumberLocale)
+  colIndex <-  salesOrderColIndex <- 1
+  while(salesOrderColIndex <= numOfCol) {
+    if(NROW(na.omit(datfHead[[salesOrderColIndex]])) > 1 && !is.null(numberLocale <- getNumberLocale(na.omit(datfHead[[salesOrderColIndex]])))) {
+      splitedDatf <- splitedDatf %>% add_column(parseNumber(numberLocale, datf[[salesOrderColIndex]]))
+      names(splitedDatf)[colIndex + 1] <- names(datf)[salesOrderColIndex]
+      colIndex = colIndex + 1        
+    }
+    salesOrderColIndex = salesOrderColIndex + 1
+  }
+  return(splitedDatf %>% select(-index))
+}
